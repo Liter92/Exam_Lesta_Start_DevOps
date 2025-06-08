@@ -1,0 +1,64 @@
+pipeline {
+    agent { label 'linux' }
+    
+    environment {
+        DOCKER_IMAGE = "task_examen_web"
+        API_URL = "http://37.9.53.134:5000/ping"
+        WORKSPACE_DIR = "/home/ubuntu/deploy"
+    }
+
+    stages {
+        stage('Create dir') {
+            steps {
+                sh "mkdir -p ${WORKSPACE_DIR}"
+            }
+        }
+        
+        stage('Clone Repository') {
+            steps {
+                dir("${WORKSPACE_DIR}") {
+                    withCredentials([string(credentialsId: '098GIT', variable: 'GIT_TOKEN')]) {
+                        sh """
+                            find . -mindepth 1 -delete
+                            git clone https://Liter92:\$GIT_TOKEN@github.com/Liter92/Exam_Lesta_Start_DevOps.git .
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                dir("${WORKSPACE_DIR}") {
+                    sh "docker build -t ${DOCKER_IMAGE} ."
+                }
+            }
+        }
+
+        stage('Docker-Compose UP') {
+            steps {
+                dir("${WORKSPACE_DIR}") {
+                    sh """
+                         docker-compose up -d
+                    """
+                }
+            }
+        }
+
+        stage('Test API Response') {
+            steps {
+                sh """
+                    RESPONSE=\$(curl -s ${API_URL})
+                    echo "Полученный ответ: \$RESPONSE"
+
+                    if echo "\$RESPONSE" | grep -q "ok"; then
+                        echo "API вернул корректный ответ."
+                    else
+                        echo "Ошибка: API не содержит 'ok'!"
+                        exit 1
+                    fi
+                """
+            }
+        }
+    }
+}
